@@ -1,16 +1,17 @@
 import React, { Component } from "react";
 import { Link } from "react-router-dom";
 import "../services/fakeMovieService.js";
-import { getMovies } from "../services/fakeMovieService.js";
+import { getMovies, deleteMovie } from "../services/movieService.js";
 import Pagination from "./pagination.jsx";
 import { paginate } from "../utils/paginate.js";
 import { filter } from "../utils/filter.js";
 import GenreList from "./GenreList";
-import { getGenres } from "../services/fakeGenreService";
+import { getGenres } from "../services/genreService";
 import MoviesTable from "./MoviesTable.jsx";
 import _ from "lodash";
 import SearchBox from "./searchBox.jsx";
 import { fileURLToPath } from "url";
+import { toast } from "react-toastify";
 
 class Movies extends Component {
   state = {
@@ -27,13 +28,32 @@ class Movies extends Component {
   };
 
   componentDidMount() {
-    const genres = [{ _id: "", name: "All Movies" }, ...getGenres()];
-    this.setState({ movies: getMovies(), genres });
+    console.log("component mounted");
+
+    let genres = [];
+    let allMovies = [];
+    getGenres().then(response => {
+      genres = [{ _id: "", name: "All Movies" }, ...response.data];
+      this.setState({ genres });
+    });
+    // const genres = [{ _id: "", name: "All Movies" }, ...getGenres()];
+    getMovies().then(response => {
+      allMovies = [...response.data];
+      this.setState({ movies: allMovies });
+    });
   }
 
   handleDelete = movie => {
-    const remainingMovies = this.state.movies.filter(m => m._id !== movie._id);
+    const originalMovies = this.state.movies;
+    const remainingMovies = originalMovies.filter(m => m._id !== movie._id);
     this.setState({ movies: remainingMovies });
+
+    deleteMovie(movie._id)
+      .then(response => console.log(response, " Movie has been deleted"))
+      .catch(ex => {
+        toast("Movie has already been deleted");
+        this.setState({ movies: originalMovies });
+      });
   };
 
   handleLike = movie => {
@@ -100,7 +120,7 @@ class Movies extends Component {
     } = this.state;
 
     const { totalCount, data: movies } = this.getPagedData();
-
+    const { user } = this.props;
     if (count === 0) {
       return <p>There are no movies in the database</p>;
     }
@@ -114,9 +134,11 @@ class Movies extends Component {
           />
         </div>
         <div className="col-9">
-          <Link className="btn btn-primary new-movie" to="/movies/new">
-            New Movie
-          </Link>
+          {user && (
+            <Link className="btn btn-primary new-movie" to="/movies/new">
+              New Movie
+            </Link>
+          )}
           <p>Showing {totalCount} movies</p>
           <SearchBox value={searchQuery} onChange={this.handleSearch} />
           <MoviesTable
